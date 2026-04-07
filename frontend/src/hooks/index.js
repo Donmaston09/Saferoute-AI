@@ -54,7 +54,7 @@ export function useAudioAlerts() {
   }, []);
 
   const triggerAlert = useCallback((threatLevel) => {
-    if (!audioEnabled) return;
+    if (!audioEnabled || !threatLevel || threatLevel === "GREEN") return;
     if (lastAlertRef.current === threatLevel) return;
 
     lastAlertRef.current = threatLevel;
@@ -66,8 +66,8 @@ export function useAudioAlerts() {
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(
         threatLevel === "RED"
-          ? "Danger ahead. Immediate threat detected. Consider turning back now."
-          : "Caution. Hazard detected on the road ahead. Proceed with care."
+          ? "High priority warning ahead. Slow down and prepare to avoid the hazard."
+          : "Potential hazard ahead. Proceed carefully and keep scanning the road."
       );
       utterance.rate = 1;
       utterance.volume = 1;
@@ -181,4 +181,69 @@ export function useDangerZones(position) {
   }, [flushQueue]);
 
   return { nearbyZones, reportZone };
+}
+
+export function useContextReport({
+  detections,
+  nearbyZones,
+  position,
+  threatLevel,
+  communityRiskLevel,
+}) {
+  const [contextReport, setContextReport] = useState(null);
+  const [isLoadingReport, setIsLoadingReport] = useState(false);
+
+  useEffect(() => {
+    if (!threatLevel || threatLevel === "GREEN") {
+      setContextReport(null);
+      return undefined;
+    }
+
+    const relevantDetections = detections.filter(detection => detection.threatLevel !== "GREEN");
+    if (!relevantDetections.length) {
+      setContextReport(null);
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    async function loadContextReport() {
+      setIsLoadingReport(true);
+      try {
+        const response = await fetch(`${BACKEND}/api/context-report`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            detections: relevantDetections.slice(0, 5),
+            nearbyZones: nearbyZones.slice(0, 3),
+            position,
+            threatLevel,
+            communityRiskLevel,
+          }),
+        });
+
+        if (!response.ok) return;
+
+        const data = await response.json();
+        if (!cancelled) {
+          setContextReport(data.report || null);
+        }
+      } catch (_) {
+        if (!cancelled) {
+          setContextReport(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingReport(false);
+        }
+      }
+    }
+
+    loadContextReport();
+    return () => {
+      cancelled = true;
+    };
+  }, [communityRiskLevel, detections, nearbyZones, position, threatLevel]);
+
+  return { contextReport, isLoadingReport };
 }

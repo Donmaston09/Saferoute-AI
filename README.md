@@ -74,6 +74,8 @@ python hazard_detector.py --source 0
 - `backend` is ready for Node hosting on Render or Railway
 - set `VITE_BACKEND_URL` in the frontend host
 - set `FRONTEND_ORIGIN` in the backend host if you want tighter CORS than `*`
+- set `OPENAI_API_KEY` in the backend host if you want LLM-generated context reports
+- optionally set `OPENAI_MODEL` in the backend host, otherwise the backend uses `gpt-4.1-mini`
 
 ## Reliability Notes
 

@@ -3,11 +3,17 @@ import {
   AlertBanner,
   CameraFeed,
   CommunityWarning,
+  ContextReportCard,
   ControlPanel,
 } from "./components/index.jsx";
 import HUDOverlay from "./components/HUDOverlay.jsx";
 import { useHazardDetection } from "./hooks/useHazardDetection.js";
-import { useAudioAlerts, useDangerZones, useGPS } from "./hooks/index.js";
+import {
+  useAudioAlerts,
+  useContextReport,
+  useDangerZones,
+  useGPS,
+} from "./hooks/index.js";
 import "./App.css";
 
 export default function App() {
@@ -19,23 +25,32 @@ export default function App() {
   const [cameraError, setCameraError] = useState("");
 
   const { position, error: gpsError } = useGPS();
+  const { nearbyZones, reportZone } = useDangerZones(position);
+
+  const communityRiskLevel = nearbyZones.some(zone => zone.threatLevel === "RED")
+    ? "RED"
+    : nearbyZones.some(zone => zone.threatLevel === "YELLOW")
+      ? "YELLOW"
+      : "GREEN";
+
   const { threatLevel, detections, isProcessing, modelLoaded } = useHazardDetection(
     videoRef,
     canvasRef,
     {
       nightMode,
       enabled: cameraReady,
-      context: {
-        communityRiskLevel: nearbyZones.some(zone => zone.threatLevel === "RED")
-          ? "RED"
-          : nearbyZones.some(zone => zone.threatLevel === "YELLOW")
-            ? "YELLOW"
-            : "GREEN",
-      },
+      context: { communityRiskLevel },
     }
   );
-  const { nearbyZones, reportZone } = useDangerZones(position);
+
   const { audioEnabled, enableAudio, triggerAlert } = useAudioAlerts();
+  const { contextReport, isLoadingReport } = useContextReport({
+    detections,
+    nearbyZones,
+    position,
+    threatLevel,
+    communityRiskLevel,
+  });
 
   useEffect(() => {
     if (!threatLevel || threatLevel === "GREEN") return;
@@ -86,6 +101,7 @@ export default function App() {
       ) : null}
 
       {communityHighRisk ? <CommunityWarning zones={nearbyZones} /> : null}
+      <ContextReportCard report={contextReport} isLoading={isLoadingReport} />
 
       <main className="main-view">
         <AlertBanner threatLevel={threatLevel} detections={detections} />

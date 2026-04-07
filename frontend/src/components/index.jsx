@@ -108,6 +108,36 @@ export function CommunityWarning({ zones }) {
   );
 }
 
+export function ContextReportCard({ report, isLoading }) {
+  if (!isLoading && !report) return null;
+
+  return (
+    <section className="context-report-card" aria-live="polite">
+      <div className="context-report-header">
+        <strong>Context Report</strong>
+        {report?.source ? <span>{report.source.toUpperCase()}</span> : null}
+      </div>
+      <p className="context-report-headline">
+        {isLoading && !report ? "Analyzing route context..." : report?.headline}
+      </p>
+      {report?.summary ? <p className="context-report-summary">{report.summary}</p> : null}
+      {report?.evidence?.length ? (
+        <div className="context-report-evidence">
+          {report.evidence.map(item => (
+            <p key={item}>{item}</p>
+          ))}
+        </div>
+      ) : null}
+      {report?.guidance ? <p className="context-report-guidance">{report.guidance}</p> : null}
+      {typeof report?.confidence === "number" ? (
+        <p className="context-report-confidence">
+          Reliability {(report.confidence * 100).toFixed(0)}%
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
 export function ControlPanel({
   nightMode,
   onNightModeToggle,
