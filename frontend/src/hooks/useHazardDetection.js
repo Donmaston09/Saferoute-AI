@@ -4,8 +4,8 @@ import * as tf from "@tensorflow/tfjs";
 
 const FRAME_WIDTH_THRESHOLD = 0.38;
 const PROCESS_INTERVAL_MS = 150;
-const MIN_CONFIDENCE = 0.55;
-const MIN_BOX_AREA_RATIO = 0.015;
+const MIN_CONFIDENCE = 0.65;
+const MIN_BOX_AREA_RATIO = 0.025;
 const TRACK_EXPIRY_MS = 2500;
 const ROUTE_WINDOW = {
   left: 0.2,
@@ -16,24 +16,33 @@ const ROUTE_WINDOW = {
 
 const THREAT_MAP = {
   person: "WATCH",
-  car: "YELLOW",
-  truck: "YELLOW",
-  bus: "YELLOW",
-  motorcycle: "YELLOW",
-  bicycle: "YELLOW",
-  "traffic light": "YELLOW",
-  "stop sign": "YELLOW",
+  car: "WATCH",
+  truck: "WATCH",
+  bus: "WATCH",
+  motorcycle: "WATCH",
+  bicycle: "WATCH",
+  "traffic light": "GREEN",
+  "stop sign": "GREEN",
 };
 
 const CLASS_ROUTE_THRESHOLDS = {
-  person: 0.66,
-  car: 0.65,
-  truck: 0.68,
-  bus: 0.68,
-  motorcycle: 0.64,
-  bicycle: 0.64,
-  "traffic light": 0.84,
-  "stop sign": 0.86,
+  person: 0.76,
+  car: 0.8,
+  truck: 0.82,
+  bus: 0.84,
+  motorcycle: 0.78,
+  bicycle: 0.8,
+  "traffic light": 1,
+  "stop sign": 1,
+};
+
+const MIN_PERSISTENCE = {
+  person: 3,
+  car: 4,
+  truck: 4,
+  bus: 4,
+  motorcycle: 4,
+  bicycle: 4,
 };
 
 function clamp(value, min, max) {
@@ -153,22 +162,50 @@ function classifyDetections(predictions, frameWidth, frameHeight, { communityRis
       communityRiskLevel
     );
     const routeThreshold = CLASS_ROUTE_THRESHOLDS[prediction.class] || 0.7;
+    const minPersistence = MIN_PERSISTENCE[prediction.class] || 3;
 
-    if (routeContext.routeScore < routeThreshold) continue;
+    if (routeContext.routeScore < routeThreshold || persistence < minPersistence) continue;
 
     let threatLevel = "GREEN";
 
     if (rawThreat === "WATCH") {
-      if (personCount >= 3 && frameRatio > 0.18 && routeContext.routeScore >= 0.78) {
-        threatLevel = "RED";
-      } else if ((personCount >= 2 || frameRatio > 0.22) && routeContext.routeScore >= 0.68) {
+      if (prediction.class === "person") {
+        if (
+          personCount >= 3 &&
+          frameRatio > 0.24 &&
+          routeContext.routeScore >= 0.88 &&
+          persistence >= 5
+        ) {
+          threatLevel = "RED";
+        } else if (
+          (
+            (personCount >= 2 && routeContext.inRouteWindow) ||
+            frameRatio > 0.3 ||
+            communityRiskLevel === "RED"
+          ) &&
+          routeContext.routeScore >= 0.8 &&
+          persistence >= 4
+        ) {
+          threatLevel = "YELLOW";
+        }
+      } else if (
+        routeContext.inRouteWindow &&
+        frameRatio > 0.24 &&
+        routeContext.routeScore >= 0.82 &&
+        persistence >= 5
+      ) {
         threatLevel = "YELLOW";
       }
-    } else {
-      threatLevel = frameRatio > 0.14 && routeContext.inRouteWindow ? rawThreat : "GREEN";
     }
 
-    if (frameRatio > FRAME_WIDTH_THRESHOLD && threatLevel !== "GREEN" && routeContext.routeScore >= 0.82) {
+    if (
+      frameRatio > FRAME_WIDTH_THRESHOLD &&
+      threatLevel === "YELLOW" &&
+      routeContext.routeScore >= 0.9 &&
+      persistence >= 5 &&
+      routeContext.inRouteWindow &&
+      (communityRiskLevel !== "GREEN" || prediction.class === "person")
+    ) {
       threatLevel = "RED";
     }
 
