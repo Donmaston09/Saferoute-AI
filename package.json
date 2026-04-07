@@ -6,6 +6,8 @@
     "dev:frontend": "npm --prefix frontend run dev",
     "build:frontend": "npm --prefix frontend run build",
     "dev:backend": "npm --prefix backend run dev",
-    "start:backend": "npm --prefix backend run start"
+    "start:backend": "npm --prefix backend run start",
+    "mobile:sync": "npm --prefix frontend run cap:sync",
+    "mobile:open:android": "npm --prefix frontend run cap:open:android"
   }
 }

@@ -28,6 +28,8 @@ backend/
   package.json
   server.js
 frontend/
+  android/
+  capacitor.config.json
   index.html
   package.json
   vite.config.js
@@ -68,6 +70,13 @@ pip install ultralytics opencv-python numpy requests
 python hazard_detector.py --source 0
 ```
 
+Android wrapper:
+
+```bash
+npm run mobile:sync
+npm run mobile:open:android
+```
+
 ## Deployment Notes
 
 - `frontend` is ready for static hosting on Render, Vercel, or Netlify
@@ -78,6 +87,7 @@ python hazard_detector.py --source 0
 - or set `LLM_PROVIDER=gemini` with `GEMINI_API_KEY` if you want Gemini-generated context reports
 - optionally set `OPENAI_MODEL`, otherwise the backend uses `gpt-4.1-mini`
 - optionally set `GEMINI_MODEL`, otherwise the backend uses `gemini-2.5-flash`
+- for mobile packaging and Play Store prep, see [MOBILE_RELEASE.md](/Users/ao0028/Desktop/Saferoute_AI/MOBILE_RELEASE.md)
 
 ## Reliability Notes
 
