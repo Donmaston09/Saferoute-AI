@@ -5,6 +5,7 @@ import {
   CommunityWarning,
   ContextReportCard,
   ControlPanel,
+  SafetyActions,
 } from "./components/index.jsx";
 import HUDOverlay from "./components/HUDOverlay.jsx";
 import { useHazardDetection } from "./hooks/useHazardDetection.js";
@@ -23,6 +24,8 @@ export default function App() {
   const [nightMode, setNightMode] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState("");
+  const [alertProfile, setAlertProfile] = useState("conservative");
+  const [reportSuppressedUntil, setReportSuppressedUntil] = useState(0);
 
   const { position, error: gpsError } = useGPS();
   const { nearbyZones, reportZone } = useDangerZones(position);
@@ -33,13 +36,13 @@ export default function App() {
       ? "YELLOW"
       : "GREEN";
 
-  const { threatLevel, detections, isProcessing, modelLoaded } = useHazardDetection(
+  const { threatLevel, detections, isProcessing, modelLoaded, reviewState } = useHazardDetection(
     videoRef,
     canvasRef,
     {
       nightMode,
       enabled: cameraReady,
-      context: { communityRiskLevel },
+      context: { communityRiskLevel, alertProfile },
     }
   );
 
@@ -57,10 +60,21 @@ export default function App() {
 
     triggerAlert(threatLevel);
 
-    if (position && threatLevel === "RED") {
-      reportZone({ threatLevel, detections, lat: position.lat, lon: position.lon });
-    }
   }, [detections, position, reportZone, threatLevel, triggerAlert]);
+
+  const handleConfirmHazard = () => {
+    if (!position || threatLevel !== "RED") return;
+    reportZone({ threatLevel, detections, lat: position.lat, lon: position.lon });
+    setReportSuppressedUntil(Date.now() + 60000);
+  };
+
+  const handleDismissHazard = () => {
+    setReportSuppressedUntil(Date.now() + 60000);
+  };
+
+  const effectiveReviewState = reviewState.needsConfirmation && Date.now() > reportSuppressedUntil
+    ? reviewState
+    : { needsConfirmation: false, confidence: reviewState.confidence };
 
   const communityHighRisk = nearbyZones.some(zone => zone.threatLevel === "RED");
   const systemStatus = cameraError || gpsError;
@@ -99,6 +113,14 @@ export default function App() {
           </button>
         </div>
       ) : null}
+
+      <SafetyActions
+        alertProfile={alertProfile}
+        onAlertProfileChange={setAlertProfile}
+        reviewState={effectiveReviewState}
+        onConfirmHazard={handleConfirmHazard}
+        onDismissHazard={handleDismissHazard}
+      />
 
       {communityHighRisk ? <CommunityWarning zones={nearbyZones} /> : null}
       <ContextReportCard report={contextReport} isLoading={isLoadingReport} />

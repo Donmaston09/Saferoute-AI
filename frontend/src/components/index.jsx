@@ -138,6 +138,49 @@ export function ContextReportCard({ report, isLoading }) {
   );
 }
 
+export function SafetyActions({
+  alertProfile,
+  onAlertProfileChange,
+  reviewState,
+  onConfirmHazard,
+  onDismissHazard,
+}) {
+  return (
+    <section className="safety-actions">
+      <div className="safety-actions-header">
+        <strong>Alert Mode</strong>
+        <div className="alert-profile-toggle">
+          <button
+            className={`profile-btn ${alertProfile === "conservative" ? "active" : ""}`}
+            onClick={() => onAlertProfileChange("conservative")}
+          >
+            Conservative
+          </button>
+          <button
+            className={`profile-btn ${alertProfile === "balanced" ? "active" : ""}`}
+            onClick={() => onAlertProfileChange("balanced")}
+          >
+            Balanced
+          </button>
+        </div>
+      </div>
+
+      {reviewState?.needsConfirmation ? (
+        <div className="confirmation-panel">
+          <p className="confirmation-title">Confirm before sharing</p>
+          <p className="confirmation-copy">
+            High-risk alert confidence {(reviewState.confidence * 100).toFixed(0)}%. Confirm this hazard before it is shared with other drivers.
+          </p>
+          <div className="confirmation-actions">
+            <button className="confirm-btn" onClick={onConfirmHazard}>Confirm Hazard</button>
+            <button className="dismiss-btn" onClick={onDismissHazard}>False Alarm</button>
+          </div>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 export function ControlPanel({
   nightMode,
   onNightModeToggle,

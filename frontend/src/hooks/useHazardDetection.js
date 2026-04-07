@@ -45,6 +45,21 @@ const MIN_PERSISTENCE = {
   bicycle: 4,
 };
 
+const ALERT_PROFILES = {
+  conservative: {
+    confidenceBoost: 0.08,
+    routeBoost: 0.08,
+    persistenceBoost: 2,
+    redBoost: 0.08,
+  },
+  balanced: {
+    confidenceBoost: 0,
+    routeBoost: 0,
+    persistenceBoost: 0,
+    redBoost: 0,
+  },
+};
+
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
@@ -131,20 +146,22 @@ function applyHistogramEqualization(imageData) {
   return imageData;
 }
 
-function classifyDetections(predictions, frameWidth, frameHeight, { communityRiskLevel, trackHistory }) {
+function classifyDetections(predictions, frameWidth, frameHeight, { communityRiskLevel, trackHistory, alertProfile }) {
   const detections = [];
   let highestLevel = "GREEN";
   let personCount = 0;
   const levels = { GREEN: 0, YELLOW: 1, RED: 2 };
+  const profile = ALERT_PROFILES[alertProfile] || ALERT_PROFILES.conservative;
+  let reviewConfidence = 0;
 
   for (const prediction of predictions) {
-    if (prediction.class === "person" && prediction.score >= MIN_CONFIDENCE) {
+    if (prediction.class === "person" && prediction.score >= MIN_CONFIDENCE + profile.confidenceBoost) {
       personCount += 1;
     }
   }
 
   for (const prediction of predictions) {
-    if (prediction.score < MIN_CONFIDENCE) continue;
+    if (prediction.score < MIN_CONFIDENCE + profile.confidenceBoost) continue;
 
     const [x, y, w, h] = prediction.bbox;
     const areaRatio = (w * h) / (frameWidth * frameHeight);
@@ -164,7 +181,10 @@ function classifyDetections(predictions, frameWidth, frameHeight, { communityRis
     const routeThreshold = CLASS_ROUTE_THRESHOLDS[prediction.class] || 0.7;
     const minPersistence = MIN_PERSISTENCE[prediction.class] || 3;
 
-    if (routeContext.routeScore < routeThreshold || persistence < minPersistence) continue;
+    if (
+      routeContext.routeScore < routeThreshold + profile.routeBoost ||
+      persistence < minPersistence + profile.persistenceBoost
+    ) continue;
 
     let threatLevel = "GREEN";
 
@@ -173,8 +193,8 @@ function classifyDetections(predictions, frameWidth, frameHeight, { communityRis
         if (
           personCount >= 3 &&
           frameRatio > 0.24 &&
-          routeContext.routeScore >= 0.88 &&
-          persistence >= 5
+          routeContext.routeScore >= 0.88 + profile.redBoost &&
+          persistence >= 5 + profile.persistenceBoost
         ) {
           threatLevel = "RED";
         } else if (
@@ -183,16 +203,16 @@ function classifyDetections(predictions, frameWidth, frameHeight, { communityRis
             frameRatio > 0.3 ||
             communityRiskLevel === "RED"
           ) &&
-          routeContext.routeScore >= 0.8 &&
-          persistence >= 4
+          routeContext.routeScore >= 0.8 + profile.routeBoost &&
+          persistence >= 4 + profile.persistenceBoost
         ) {
           threatLevel = "YELLOW";
         }
       } else if (
         routeContext.inRouteWindow &&
         frameRatio > 0.24 &&
-        routeContext.routeScore >= 0.82 &&
-        persistence >= 5
+        routeContext.routeScore >= 0.82 + profile.routeBoost &&
+        persistence >= 5 + profile.persistenceBoost
       ) {
         threatLevel = "YELLOW";
       }
@@ -201,13 +221,22 @@ function classifyDetections(predictions, frameWidth, frameHeight, { communityRis
     if (
       frameRatio > FRAME_WIDTH_THRESHOLD &&
       threatLevel === "YELLOW" &&
-      routeContext.routeScore >= 0.9 &&
-      persistence >= 5 &&
+      routeContext.routeScore >= 0.9 + profile.redBoost &&
+      persistence >= 5 + profile.persistenceBoost &&
       routeContext.inRouteWindow &&
       (communityRiskLevel !== "GREEN" || prediction.class === "person")
     ) {
       threatLevel = "RED";
     }
+
+    const confidenceScore = Math.min(
+      0.98,
+      prediction.score * 0.45 +
+      routeContext.routeScore * 0.3 +
+      Math.min(persistence / 6, 1) * 0.15 +
+      (routeContext.inRouteWindow ? 0.05 : 0) +
+      (communityRiskLevel === "RED" ? 0.05 : communityRiskLevel === "YELLOW" ? 0.02 : 0)
+    );
 
     detections.push({
       label: prediction.class,
@@ -219,14 +248,17 @@ function classifyDetections(predictions, frameWidth, frameHeight, { communityRis
       routeScore: routeContext.routeScore,
       inRouteWindow: routeContext.inRouteWindow,
       persistence,
+      confidenceScore,
     });
+
+    reviewConfidence = Math.max(reviewConfidence, confidenceScore);
 
     if (levels[threatLevel] > levels[highestLevel]) {
       highestLevel = threatLevel;
     }
   }
 
-  return { detections, highestLevel };
+  return { detections, highestLevel, reviewConfidence };
 }
 
 export function useHazardDetection(videoRef, canvasRef, { nightMode, enabled, context = {} }) {
@@ -234,6 +266,7 @@ export function useHazardDetection(videoRef, canvasRef, { nightMode, enabled, co
   const [detections, setDetections] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [model, setModel] = useState(null);
+  const [reviewState, setReviewState] = useState({ needsConfirmation: false, confidence: 0 });
 
   const intervalRef = useRef(null);
   const offscreenRef = useRef(null);
@@ -312,9 +345,10 @@ export function useHazardDetection(videoRef, canvasRef, { nightMode, enabled, co
         });
       }
 
-      const { detections: nextDetections, highestLevel } = classifyDetections(predictions, width, height, {
+      const { detections: nextDetections, highestLevel, reviewConfidence } = classifyDetections(predictions, width, height, {
         communityRiskLevel: context.communityRiskLevel || "GREEN",
         trackHistory: trackHistoryRef.current,
+        alertProfile: context.alertProfile || "conservative",
       });
       const threshold = highestLevel === "RED" ? 3 : highestLevel === "YELLOW" ? 2 : 1;
 
@@ -335,10 +369,14 @@ export function useHazardDetection(videoRef, canvasRef, { nightMode, enabled, co
       stabilityRef.current.stable = stableThreatLevel;
       setDetections(nextDetections);
       setThreatLevel(stableThreatLevel);
+      setReviewState({
+        needsConfirmation: stableThreatLevel === "RED" && reviewConfidence >= 0.82 && nextDetections.length > 0,
+        confidence: reviewConfidence,
+      });
     } finally {
       setIsProcessing(false);
     }
-  }, [canvasRef, context.communityRiskLevel, isProcessing, model, nightMode, videoRef]);
+  }, [canvasRef, context.alertProfile, context.communityRiskLevel, isProcessing, model, nightMode, videoRef]);
 
   useEffect(() => {
     if (!enabled || !model) {
@@ -350,5 +388,5 @@ export function useHazardDetection(videoRef, canvasRef, { nightMode, enabled, co
     return () => clearInterval(intervalRef.current);
   }, [enabled, model, processFrame]);
 
-  return { threatLevel, detections, isProcessing, modelLoaded: Boolean(model) };
+  return { threatLevel, detections, isProcessing, modelLoaded: Boolean(model), reviewState };
 }
