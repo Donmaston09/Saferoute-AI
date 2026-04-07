@@ -1,0 +1,358 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   SafeRoute AI — Driver Mode CSS
+   Design: Military/tactical HUD aesthetic. High contrast. No decoration.
+   Fonts: "Share Tech Mono" for data readouts, "Barlow Condensed" for labels.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@400;600;700&display=swap');
+
+/* ─── Reset & Base ─────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --font-hud:    'Share Tech Mono', monospace;
+  --font-label:  'Barlow Condensed', sans-serif;
+
+  --green:  #22c55e;
+  --yellow: #f59e0b;
+  --red:    #ef4444;
+
+  --bg:     #0a0f1a;
+  --bg2:    #111827;
+  --bg3:    #1e293b;
+  --text:   #e2e8f0;
+  --muted:  #64748b;
+  --border: #1e293b;
+
+  --header-h:  52px;
+  --footer-h:  130px;
+  --anim:      0.2s ease;
+}
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-label);
+  -webkit-font-smoothing: antialiased;
+}
+
+#root { height: 100%; }
+
+/* ─── App Shell ────────────────────────────────────────────────────────────── */
+.app {
+  display: grid;
+  grid-template-rows: var(--header-h) auto 1fr auto;
+  height: 100dvh;
+  background: var(--bg);
+  transition: background var(--anim);
+  overflow: hidden;
+}
+
+/* Threat-level ambient background shift */
+.app.threat-yellow { --ambient: #f59e0b18; }
+.app.threat-red    { --ambient: #ef444428; animation: red-pulse 1.2s ease-in-out infinite; }
+
+@keyframes red-pulse {
+  0%, 100% { box-shadow: inset 0 0 0 4px #ef444400; }
+  50%       { box-shadow: inset 0 0 0 4px #ef444444; }
+}
+
+/* ─── Night Mode ───────────────────────────────────────────────────────────── */
+.night-mode {
+  filter: brightness(0.85) sepia(0.15) hue-rotate(200deg);
+}
+.night-mode .app-header,
+.night-mode .control-panel { filter: brightness(1.2) sepia(0) hue-rotate(0); }
+
+
+/* ─── Header ───────────────────────────────────────────────────────────────── */
+.app-header {
+  display:         flex;
+  align-items:     center;
+  justify-content: space-between;
+  padding:         0 16px;
+  height:          var(--header-h);
+  background:      var(--bg2);
+  border-bottom:   1px solid var(--border);
+  z-index:         10;
+  flex-shrink:     0;
+}
+
+.logo {
+  display:     flex;
+  align-items: center;
+  gap:         8px;
+}
+
+.logo-icon {
+  font-size:  22px;
+  color:      var(--green);
+  animation:  spin 8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.logo-text {
+  font-family:    var(--font-hud);
+  font-size:      16px;
+  letter-spacing: 0.1em;
+  color:          var(--text);
+}
+
+.header-status {
+  display: flex;
+  gap:     8px;
+}
+
+.badge {
+  font-family:    var(--font-hud);
+  font-size:      10px;
+  letter-spacing: 0.08em;
+  padding:        3px 8px;
+  border-radius:  3px;
+  border:         1px solid transparent;
+}
+.badge-active  { color: var(--green);  border-color: var(--green);  background: #22c55e18; }
+.badge-loading { color: var(--yellow); border-color: var(--yellow); background: #f59e0b18;
+                 animation: blink 1s step-end infinite; }
+.badge-gps     { color: #60a5fa;       border-color: #60a5fa;       background: #60a5fa18; }
+
+@keyframes blink { 50% { opacity: 0; } }
+
+.system-banner {
+  padding: 10px 16px;
+  background: #451a03;
+  border-bottom: 1px solid #f59e0b;
+  color: #fde68a;
+  font-family: var(--font-hud);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+}
+
+
+/* ─── Community Warning ────────────────────────────────────────────────────── */
+.community-warning {
+  display:         flex;
+  align-items:     center;
+  gap:             12px;
+  padding:         10px 16px;
+  background:      #7c2d1220;
+  border-bottom:   1px solid var(--red);
+  flex-shrink:     0;
+  animation:       slideDown 0.3s ease;
+}
+@keyframes slideDown { from { transform: translateY(-100%); opacity: 0; } }
+
+.cw-icon { font-size: 20px; color: var(--red); flex-shrink: 0; }
+.cw-text { display: flex; flex-direction: column; gap: 2px; }
+.cw-text strong { font-size: 11px; letter-spacing: 0.1em; color: var(--red); font-family: var(--font-hud); }
+.cw-text span   { font-size: 13px; color: var(--text); font-weight: 400; }
+
+
+/* ─── Main View ────────────────────────────────────────────────────────────── */
+.main-view {
+  position: relative;
+  display:  flex;
+  flex-direction: column;
+  overflow: hidden;
+  flex:     1 1 0;
+  min-height: 0;
+}
+
+.camera-wrapper {
+  position: relative;
+  flex:     1 1 0;
+  min-height: 0;
+  background: #000;
+  overflow:   hidden;
+}
+
+.camera-feed {
+  display: block;
+  width:   100%;
+  height:  100%;
+  object-fit: cover;
+}
+
+.hud-canvas {
+  position: absolute;
+  inset: 0;
+  width:    100% !important;
+  height:   100% !important;
+  pointer-events: none;
+}
+
+
+/* ─── Alert Banner ─────────────────────────────────────────────────────────── */
+.alert-banner {
+  position:       relative;
+  display:        flex;
+  align-items:    center;
+  gap:            10px;
+  padding:        10px 16px;
+  font-family:    var(--font-hud);
+  font-size:      15px;
+  letter-spacing: 0.08em;
+  flex-shrink:    0;
+  z-index:        5;
+  overflow:       hidden;
+}
+
+.alert-yellow { background: #92400e; color: #fef3c7; border-bottom: 2px solid var(--yellow); }
+.alert-red    { background: #7f1d1d; color: #fee2e2; border-bottom: 2px solid var(--red);
+                animation: alarm-flash 0.6s ease-in-out infinite; }
+
+@keyframes alarm-flash {
+  0%, 100% { background: #7f1d1d; }
+  50%       { background: #991b1b; }
+}
+
+.alert-icon { font-size: 18px; flex-shrink: 0; }
+.alert-text { font-weight: 600; flex: 1; }
+
+.alert-pulse {
+  position:      absolute;
+  right:         12px;
+  width:         12px; height: 12px;
+  border-radius: 50%;
+  background:    var(--red);
+  animation:     ping 1s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+@keyframes ping {
+  75%, 100% { transform: scale(2); opacity: 0; }
+}
+
+
+/* ─── Control Panel ────────────────────────────────────────────────────────── */
+.control-panel {
+  background:    var(--bg2);
+  border-top:    1px solid var(--border);
+  padding:       12px 16px 16px;
+  flex-shrink:   0;
+}
+
+.controls-row {
+  display:         flex;
+  align-items:     center;
+  justify-content: space-between;
+  gap:             12px;
+  margin-bottom:   12px;
+}
+
+.ctrl-btn {
+  display:        flex;
+  flex-direction: column;
+  align-items:    center;
+  gap:            4px;
+  padding:        12px 20px;
+  background:     var(--bg3);
+  border:         1px solid var(--border);
+  border-radius:  8px;
+  cursor:         pointer;
+  color:          var(--muted);
+  transition:     all var(--anim);
+  font-family:    var(--font-label);
+  min-width:      80px;
+}
+.ctrl-btn:active { transform: scale(0.95); }
+.ctrl-btn.active { background: #0f2e1a; border-color: var(--green); color: var(--green); }
+.ctrl-btn.info-btn { cursor: default; }
+
+.btn-icon  { font-size: 22px; line-height: 1; }
+.btn-label { font-size: 10px; letter-spacing: 0.1em; font-weight: 600; text-align: center; line-height: 1.3; }
+
+
+/* ─── Threat Indicator ─────────────────────────────────────────────────────── */
+.threat-indicator {
+  display:        flex;
+  flex-direction: column;
+  align-items:    center;
+  gap:            6px;
+  flex:           1;
+}
+
+.threat-ring {
+  width:         52px;
+  height:        52px;
+  border-radius: 50%;
+  border:        3px solid var(--green);
+  transition:    border-color var(--anim), box-shadow var(--anim);
+  position:      relative;
+}
+.threat-ring::after {
+  content:    '';
+  position:   absolute;
+  inset:      4px;
+  border-radius: 50%;
+  background: var(--green);
+  opacity:    0.15;
+  transition: background var(--anim);
+}
+
+.threat-green  .threat-ring { border-color: var(--green); }
+.threat-yellow .threat-ring { border-color: var(--yellow); box-shadow: 0 0 16px #f59e0b66;
+  animation: ring-pulse-yellow 1s ease-in-out infinite; }
+.threat-red    .threat-ring { border-color: var(--red);    box-shadow: 0 0 24px #ef444466;
+  animation: ring-pulse-red 0.5s ease-in-out infinite; }
+
+@keyframes ring-pulse-yellow { 50% { box-shadow: 0 0 28px #f59e0b99; } }
+@keyframes ring-pulse-red    { 50% { box-shadow: 0 0 40px #ef4444cc; } }
+
+.threat-label {
+  font-family:    var(--font-hud);
+  font-size:      11px;
+  letter-spacing: 0.12em;
+  color:          var(--muted);
+  transition:     color var(--anim);
+}
+.threat-green  .threat-label { color: var(--green); }
+.threat-yellow .threat-label { color: var(--yellow); }
+.threat-red    .threat-label { color: var(--red); }
+
+
+/* ─── Zones List ───────────────────────────────────────────────────────────── */
+.zones-list {
+  border-top:  1px solid var(--border);
+  padding-top: 10px;
+}
+
+.zones-title {
+  font-family:    var(--font-hud);
+  font-size:      10px;
+  letter-spacing: 0.12em;
+  color:          var(--muted);
+  margin-bottom:  6px;
+}
+
+.zone-item {
+  display:       flex;
+  gap:           10px;
+  padding:       6px 0;
+  border-bottom: 1px solid var(--border);
+  font-size:     13px;
+  font-weight:   600;
+  letter-spacing: 0.02em;
+}
+.zone-item:last-child { border-bottom: none; }
+
+.zone-dist   { font-family: var(--font-hud); font-size: 13px; min-width: 52px; color: var(--muted); }
+.zone-label  { flex: 1; }
+
+.zone-yellow .zone-label { color: var(--yellow); }
+.zone-red    .zone-label { color: var(--red); }
+
+
+/* ─── Responsive — keep usable on 360px Android ───────────────────────────── */
+@media (max-width: 400px) {
+  .logo-text { font-size: 13px; }
+  .ctrl-btn  { padding: 10px 14px; min-width: 68px; }
+  .btn-icon  { font-size: 18px; }
+}
+
+@media (min-width: 768px) {
+  :root { --header-h: 60px; }
+  .logo-text   { font-size: 20px; }
+  .alert-banner { font-size: 18px; padding: 14px 20px; }
+  .ctrl-btn    { padding: 16px 28px; }
+}

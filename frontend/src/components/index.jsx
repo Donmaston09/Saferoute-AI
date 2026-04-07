@@ -1,0 +1,157 @@
+import { useEffect } from "react";
+
+export function CameraFeed({ videoRef, onReady, onError }) {
+  useEffect(() => {
+    let stream = null;
+    let cancelled = false;
+
+    async function startCamera() {
+      try {
+        if (!navigator.mediaDevices?.getUserMedia) {
+          throw new Error("Camera access is not supported in this browser.");
+        }
+
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: "environment" },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+          audio: false,
+        });
+
+        if (!videoRef.current || cancelled) return;
+
+        videoRef.current.srcObject = stream;
+        videoRef.current.onloadedmetadata = async () => {
+          try {
+            await videoRef.current?.play();
+            onReady?.();
+            onError?.("");
+          } catch (playbackError) {
+            onError?.(playbackError.message || "Unable to start the live camera preview.");
+          }
+        };
+      } catch (error) {
+        console.error("[SafeRoute] Camera error:", error);
+        onError?.(error.message || "Unable to access the camera.");
+      }
+    }
+
+    startCamera();
+
+    return () => {
+      cancelled = true;
+
+      if (videoRef.current) {
+        videoRef.current.onloadedmetadata = null;
+        videoRef.current.srcObject = null;
+      }
+
+      stream?.getTracks().forEach(track => track.stop());
+    };
+  }, [onError, onReady, videoRef]);
+
+  return (
+    <video
+      ref={videoRef}
+      autoPlay
+      playsInline
+      muted
+      className="camera-feed"
+      style={{ width: "100%", height: "100%", objectFit: "cover" }}
+    />
+  );
+}
+
+export function AlertBanner({ threatLevel, detections }) {
+  if (!threatLevel || threatLevel === "GREEN") return null;
+
+  const isRed = threatLevel === "RED";
+  const labels = [...new Set(detections.map(detection => detection.label))].join(", ") || "Hazard";
+
+  return (
+    <div className={`alert-banner alert-${threatLevel.toLowerCase()}`} role="alert">
+      <span className="alert-icon">{isRed ? "⚠" : "◈"}</span>
+      <span className="alert-text">
+        {isRed
+          ? `DANGER - ${labels.toUpperCase()} DETECTED`
+          : `CAUTION - ${labels.toUpperCase()}`}
+      </span>
+      {isRed ? <span className="alert-pulse" /> : null}
+    </div>
+  );
+}
+
+export function CommunityWarning({ zones }) {
+  const redZones = zones.filter(zone => zone.threatLevel === "RED");
+  const closestZone = zones
+    .map(zone => ({
+      ...zone,
+      distance: Number.parseFloat(zone.distanceKm) || Number.POSITIVE_INFINITY,
+    }))
+    .sort((left, right) => left.distance - right.distance)[0];
+
+  if (!closestZone) return null;
+
+  return (
+    <div className="community-warning">
+      <span className="cw-icon">⬡</span>
+      <div className="cw-text">
+        <strong>COMMUNITY ALERT</strong>
+        <span>
+          {redZones.length} high-risk zone{redZones.length !== 1 ? "s" : ""} reported nearby.
+          Closest: {closestZone.distance.toFixed(2)} km - {closestZone.detections?.[0]?.label || "Hazard"}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+export function ControlPanel({
+  nightMode,
+  onNightModeToggle,
+  threatLevel,
+  nearbyZones,
+  modelReady,
+}) {
+  return (
+    <footer className="control-panel">
+      <div className="controls-row">
+        <button
+          className={`ctrl-btn ${nightMode ? "active" : ""}`}
+          onClick={onNightModeToggle}
+          aria-label="Toggle night mode"
+        >
+          <span className="btn-icon">◐</span>
+          <span className="btn-label">NIGHT<br />MODE</span>
+        </button>
+
+        <div className={`threat-indicator threat-${(threatLevel || "GREEN").toLowerCase()}`}>
+          <div className="threat-ring" />
+          <span className="threat-label">{threatLevel || "CLEAR"}</span>
+        </div>
+
+        <div className={`ctrl-btn info-btn ${modelReady ? "active" : ""}`}>
+          <span className="btn-icon">{modelReady ? "◉" : "◎"}</span>
+          <span className="btn-label">{nearbyZones.length}<br />ZONES</span>
+        </div>
+      </div>
+
+      {nearbyZones.length > 0 ? (
+        <div className="zones-list">
+          <p className="zones-title">Reported Ahead</p>
+          {nearbyZones.slice(0, 3).map(zone => (
+            <div key={zone.id} className={`zone-item zone-${zone.threatLevel.toLowerCase()}`}>
+              <span className="zone-dist">{zone.distanceKm} km</span>
+              <span className="zone-label">
+                {zone.detections?.[0]?.label || "Hazard"} - {zone.threatLevel}
+                {zone.reportCount > 1 ? ` (${zone.reportCount} reports)` : ""}
+              </span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </footer>
+  );
+}

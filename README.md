@@ -1,0 +1,69 @@
+# SafeRoute AI
+
+SafeRoute AI is a driver-focused hazard awareness app built around on-device detection, a tactical HUD, and community danger-zone reporting.
+
+## Critical Assessment
+
+The original app idea was strong, but the repo was not ready for production or deployment:
+
+- the code assumed a `frontend/src/components` and `frontend/src/hooks` structure that did not exist
+- the frontend was missing build-critical files like `package.json`, `main.jsx`, and `index.html`
+- model readiness was driven by dead props rather than the actual TensorFlow model state
+- the HUD canvas was not sized to the camera viewport, which would break overlays on real devices
+- the backend accepted weakly validated input and had no deployment scaffolding
+
+This pass turns the snapshot into a real multi-part project we can build, host, and push to GitHub.
+
+## Project Layout
+
+```text
+backend/
+  package.json
+  server.js
+frontend/
+  index.html
+  package.json
+  vite.config.js
+  src/
+    App.jsx
+    App.css
+    main.jsx
+    components/
+    hooks/
+python/
+  hazard_detector.py
+render.yaml
+```
+
+## Run Locally
+
+Frontend:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Backend:
+
+```bash
+cd backend
+npm install
+npm run dev
+```
+
+Python detector:
+
+```bash
+cd python
+pip install ultralytics opencv-python numpy requests
+python hazard_detector.py --source 0
+```
+
+## Deployment Notes
+
+- `frontend` is ready for static hosting on Render, Vercel, or Netlify
+- `backend` is ready for Node hosting on Render or Railway
+- set `VITE_BACKEND_URL` in the frontend host
+- set `FRONTEND_ORIGIN` in the backend host if you want tighter CORS than `*`
