@@ -174,6 +174,53 @@ html, body {
   transform: scale(0.98);
 }
 
+.intro-card {
+  padding: 12px 16px;
+  background: linear-gradient(180deg, #132238 0%, #0f172a 100%);
+  border-bottom: 1px solid #28415f;
+  display: grid;
+  gap: 8px;
+}
+
+.intro-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.intro-card-header strong,
+.intro-reopen-btn,
+.intro-dismiss-btn {
+  font-family: var(--font-hud);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+
+.intro-card-header strong {
+  color: #bfdbfe;
+}
+
+.intro-card p {
+  font-size: 13px;
+  line-height: 1.45;
+  color: #dbeafe;
+}
+
+.intro-dismiss-btn,
+.intro-reopen-btn {
+  border: 1px solid #3b82f6;
+  background: #132238;
+  color: #bfdbfe;
+  border-radius: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+
+.intro-reopen-btn {
+  margin: 10px 16px 0;
+}
+
 .safety-actions {
   padding: 12px 16px;
   background: #0d1728;
@@ -569,6 +616,9 @@ html, body {
   .btn-icon  { font-size: 18px; }
   .audio-banner { align-items: flex-start; flex-direction: column; }
   .audio-enable-btn { width: 100%; }
+  .intro-card-header { align-items: stretch; flex-direction: column; }
+  .intro-dismiss-btn,
+  .intro-reopen-btn { width: 100%; }
   .safety-actions-header,
   .confirmation-actions,
   .alert-profile-toggle { align-items: stretch; flex-direction: column; }

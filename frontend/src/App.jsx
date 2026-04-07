@@ -26,6 +26,7 @@ export default function App() {
   const [cameraError, setCameraError] = useState("");
   const [alertProfile, setAlertProfile] = useState("conservative");
   const [reportSuppressedUntil, setReportSuppressedUntil] = useState(0);
+  const [showIntro, setShowIntro] = useState(true);
 
   const { position, error: gpsError } = useGPS();
   const { nearbyZones, reportZone } = useDangerZones(position);
@@ -113,6 +114,30 @@ export default function App() {
           </button>
         </div>
       ) : null}
+
+      {showIntro ? (
+        <section className="intro-card" aria-label="about saferoute ai">
+          <div className="intro-card-header">
+            <strong>About SafeRoute AI</strong>
+            <button className="intro-dismiss-btn" onClick={() => setShowIntro(false)}>
+              Hide
+            </button>
+          </div>
+          <p>
+            SafeRoute AI uses your camera, on-device AI, and nearby community reports to help detect possible road hazards ahead.
+          </p>
+          <p>
+            Green means clear, yellow means caution, and red means a stronger warning that should be reviewed before sharing with other drivers.
+          </p>
+          <p>
+            Enable audio, choose your alert mode, and only confirm hazards you believe are truly real and relevant to the road ahead.
+          </p>
+        </section>
+      ) : (
+        <button className="intro-reopen-btn" onClick={() => setShowIntro(true)}>
+          About SafeRoute AI
+        </button>
+      )}
 
       <SafetyActions
         alertProfile={alertProfile}
