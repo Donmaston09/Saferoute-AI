@@ -22,7 +22,17 @@ export default function App() {
   const { threatLevel, detections, isProcessing, modelLoaded } = useHazardDetection(
     videoRef,
     canvasRef,
-    { nightMode, enabled: cameraReady }
+    {
+      nightMode,
+      enabled: cameraReady,
+      context: {
+        communityRiskLevel: nearbyZones.some(zone => zone.threatLevel === "RED")
+          ? "RED"
+          : nearbyZones.some(zone => zone.threatLevel === "YELLOW")
+            ? "YELLOW"
+            : "GREEN",
+      },
+    }
   );
   const { nearbyZones, reportZone } = useDangerZones(position);
   const { audioEnabled, enableAudio, triggerAlert } = useAudioAlerts();

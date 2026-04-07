@@ -6,6 +6,13 @@ const FRAME_WIDTH_THRESHOLD = 0.38;
 const PROCESS_INTERVAL_MS = 150;
 const MIN_CONFIDENCE = 0.55;
 const MIN_BOX_AREA_RATIO = 0.015;
+const TRACK_EXPIRY_MS = 2500;
+const ROUTE_WINDOW = {
+  left: 0.2,
+  right: 0.8,
+  top: 0.18,
+  bottom: 0.98,
+};
 
 const THREAT_MAP = {
   person: "WATCH",
@@ -17,6 +24,74 @@ const THREAT_MAP = {
   "traffic light": "YELLOW",
   "stop sign": "YELLOW",
 };
+
+const CLASS_ROUTE_THRESHOLDS = {
+  person: 0.66,
+  car: 0.65,
+  truck: 0.68,
+  bus: 0.68,
+  motorcycle: 0.64,
+  bicycle: 0.64,
+  "traffic light": 0.84,
+  "stop sign": 0.86,
+};
+
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function cleanupTrackHistory(trackHistory, now) {
+  for (const [key, entry] of trackHistory.entries()) {
+    if (now - entry.lastSeen > TRACK_EXPIRY_MS) {
+      trackHistory.delete(key);
+    }
+  }
+}
+
+function buildTrackKey(prediction, frameWidth, frameHeight) {
+  const [x, y, w, h] = prediction.bbox;
+  const centerX = clamp((x + w / 2) / frameWidth, 0, 1);
+  const centerY = clamp((y + h / 2) / frameHeight, 0, 1);
+  const bucketX = Math.round(centerX * 8);
+  const bucketY = Math.round(centerY * 6);
+  return `${prediction.class}:${bucketX}:${bucketY}`;
+}
+
+function getCommunityBonus(level) {
+  if (level === "RED") return 0.08;
+  if (level === "YELLOW") return 0.04;
+  return 0;
+}
+
+function computeRouteScore(prediction, frameWidth, frameHeight, persistence, communityRiskLevel) {
+  const [x, y, w, h] = prediction.bbox;
+  const centerX = clamp((x + w / 2) / frameWidth, 0, 1);
+  const bottomY = clamp((y + h) / frameHeight, 0, 1);
+  const areaRatio = (w * h) / (frameWidth * frameHeight);
+  const centerBias = 1 - clamp(Math.abs(centerX - 0.5) / 0.5, 0, 1);
+  const forwardBias = clamp((bottomY - 0.2) / 0.8, 0, 1);
+  const sizeBias = clamp(areaRatio / 0.12, 0, 1);
+  const inRouteWindow = centerX >= ROUTE_WINDOW.left &&
+    centerX <= ROUTE_WINDOW.right &&
+    bottomY >= ROUTE_WINDOW.top &&
+    bottomY <= ROUTE_WINDOW.bottom;
+
+  const routeScore =
+    prediction.score * 0.42 +
+    centerBias * 0.18 +
+    forwardBias * 0.18 +
+    sizeBias * 0.12 +
+    clamp(persistence / 4, 0, 1) * 0.1 +
+    (inRouteWindow ? 0.06 : 0) +
+    getCommunityBonus(communityRiskLevel);
+
+  return {
+    routeScore,
+    centerBias,
+    forwardBias,
+    inRouteWindow,
+  };
+}
 
 function applyHistogramEqualization(imageData) {
   const data = imageData.data;
@@ -47,7 +122,7 @@ function applyHistogramEqualization(imageData) {
   return imageData;
 }
 
-function classifyDetections(predictions, frameWidth, frameHeight) {
+function classifyDetections(predictions, frameWidth, frameHeight, { communityRiskLevel, trackHistory }) {
   const detections = [];
   let highestLevel = "GREEN";
   let personCount = 0;
@@ -68,20 +143,32 @@ function classifyDetections(predictions, frameWidth, frameHeight) {
 
     const frameRatio = w / frameWidth;
     const rawThreat = THREAT_MAP[prediction.class] || "GREEN";
+    const trackKey = buildTrackKey(prediction, frameWidth, frameHeight);
+    const persistence = trackHistory.get(trackKey)?.count || 1;
+    const routeContext = computeRouteScore(
+      prediction,
+      frameWidth,
+      frameHeight,
+      persistence,
+      communityRiskLevel
+    );
+    const routeThreshold = CLASS_ROUTE_THRESHOLDS[prediction.class] || 0.7;
+
+    if (routeContext.routeScore < routeThreshold) continue;
 
     let threatLevel = "GREEN";
 
     if (rawThreat === "WATCH") {
-      if (personCount >= 3 && frameRatio > 0.18) {
+      if (personCount >= 3 && frameRatio > 0.18 && routeContext.routeScore >= 0.78) {
         threatLevel = "RED";
-      } else if (personCount >= 2 || frameRatio > 0.22) {
+      } else if ((personCount >= 2 || frameRatio > 0.22) && routeContext.routeScore >= 0.68) {
         threatLevel = "YELLOW";
       }
     } else {
-      threatLevel = frameRatio > 0.14 ? rawThreat : "GREEN";
+      threatLevel = frameRatio > 0.14 && routeContext.inRouteWindow ? rawThreat : "GREEN";
     }
 
-    if (frameRatio > FRAME_WIDTH_THRESHOLD && threatLevel !== "GREEN") {
+    if (frameRatio > FRAME_WIDTH_THRESHOLD && threatLevel !== "GREEN" && routeContext.routeScore >= 0.82) {
       threatLevel = "RED";
     }
 
@@ -92,6 +179,9 @@ function classifyDetections(predictions, frameWidth, frameHeight) {
       threatLevel,
       frameRatio,
       isClose: frameRatio > FRAME_WIDTH_THRESHOLD,
+      routeScore: routeContext.routeScore,
+      inRouteWindow: routeContext.inRouteWindow,
+      persistence,
     });
 
     if (levels[threatLevel] > levels[highestLevel]) {
@@ -102,7 +192,7 @@ function classifyDetections(predictions, frameWidth, frameHeight) {
   return { detections, highestLevel };
 }
 
-export function useHazardDetection(videoRef, canvasRef, { nightMode, enabled }) {
+export function useHazardDetection(videoRef, canvasRef, { nightMode, enabled, context = {} }) {
   const [threatLevel, setThreatLevel] = useState("GREEN");
   const [detections, setDetections] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -111,6 +201,7 @@ export function useHazardDetection(videoRef, canvasRef, { nightMode, enabled }) 
   const intervalRef = useRef(null);
   const offscreenRef = useRef(null);
   const stabilityRef = useRef({ candidate: "GREEN", streak: 0, stable: "GREEN" });
+  const trackHistoryRef = useRef(new Map());
 
   useEffect(() => {
     let cancelled = false;
@@ -170,7 +261,24 @@ export function useHazardDetection(videoRef, canvasRef, { nightMode, enabled }) 
         console.warn("[SafeRoute] Inference error:", error);
       }
 
-      const { detections: nextDetections, highestLevel } = classifyDetections(predictions, width, height);
+      const now = Date.now();
+      cleanupTrackHistory(trackHistoryRef.current, now);
+
+      for (const prediction of predictions) {
+        if (prediction.score < MIN_CONFIDENCE) continue;
+
+        const key = buildTrackKey(prediction, width, height);
+        const existing = trackHistoryRef.current.get(key);
+        trackHistoryRef.current.set(key, {
+          count: existing ? Math.min(existing.count + 1, 6) : 1,
+          lastSeen: now,
+        });
+      }
+
+      const { detections: nextDetections, highestLevel } = classifyDetections(predictions, width, height, {
+        communityRiskLevel: context.communityRiskLevel || "GREEN",
+        trackHistory: trackHistoryRef.current,
+      });
       const threshold = highestLevel === "RED" ? 3 : highestLevel === "YELLOW" ? 2 : 1;
 
       if (highestLevel === stabilityRef.current.candidate) {
@@ -193,7 +301,7 @@ export function useHazardDetection(videoRef, canvasRef, { nightMode, enabled }) 
     } finally {
       setIsProcessing(false);
     }
-  }, [canvasRef, isProcessing, model, nightMode, videoRef]);
+  }, [canvasRef, context.communityRiskLevel, isProcessing, model, nightMode, videoRef]);
 
   useEffect(() => {
     if (!enabled || !model) {
