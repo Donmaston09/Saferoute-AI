@@ -130,6 +130,50 @@ html, body {
   letter-spacing: 0.06em;
 }
 
+.audio-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  background: #0f172a;
+  border-bottom: 1px solid #1d4ed8;
+}
+
+.audio-banner strong,
+.audio-banner span {
+  display: block;
+}
+
+.audio-banner strong {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: #bfdbfe;
+  font-family: var(--font-hud);
+}
+
+.audio-banner span {
+  font-size: 13px;
+  color: var(--text);
+}
+
+.audio-enable-btn {
+  border: 1px solid #60a5fa;
+  background: #1d4ed8;
+  color: #eff6ff;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-family: var(--font-label);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.audio-enable-btn:active {
+  transform: scale(0.98);
+}
+
 
 /* ─── Community Warning ────────────────────────────────────────────────────── */
 .community-warning {
@@ -348,6 +392,8 @@ html, body {
   .logo-text { font-size: 13px; }
   .ctrl-btn  { padding: 10px 14px; min-width: 68px; }
   .btn-icon  { font-size: 18px; }
+  .audio-banner { align-items: flex-start; flex-direction: column; }
+  .audio-enable-btn { width: 100%; }
 }
 
 @media (min-width: 768px) {

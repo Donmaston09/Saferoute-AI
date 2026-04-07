@@ -2,9 +2,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import * as cocoSsd from "@tensorflow-models/coco-ssd";
 import * as tf from "@tensorflow/tfjs";
 
-const FRAME_WIDTH_THRESHOLD = 0.3;
+const FRAME_WIDTH_THRESHOLD = 0.38;
 const PROCESS_INTERVAL_MS = 150;
-const MIN_CONFIDENCE = 0.4;
+const MIN_CONFIDENCE = 0.55;
+const MIN_BOX_AREA_RATIO = 0.015;
 
 const THREAT_MAP = {
   person: "WATCH",
@@ -46,26 +47,39 @@ function applyHistogramEqualization(imageData) {
   return imageData;
 }
 
-function classifyDetections(predictions, frameWidth) {
+function classifyDetections(predictions, frameWidth, frameHeight) {
   const detections = [];
   let highestLevel = "GREEN";
   let personCount = 0;
   const levels = { GREEN: 0, YELLOW: 1, RED: 2 };
 
   for (const prediction of predictions) {
-    if (prediction.class === "person") {
+    if (prediction.class === "person" && prediction.score >= MIN_CONFIDENCE) {
       personCount += 1;
     }
   }
 
   for (const prediction of predictions) {
+    if (prediction.score < MIN_CONFIDENCE) continue;
+
     const [x, y, w, h] = prediction.bbox;
+    const areaRatio = (w * h) / (frameWidth * frameHeight);
+    if (areaRatio < MIN_BOX_AREA_RATIO) continue;
+
     const frameRatio = w / frameWidth;
     const rawThreat = THREAT_MAP[prediction.class] || "GREEN";
 
-    let threatLevel = rawThreat === "WATCH"
-      ? (personCount >= 3 ? "RED" : "YELLOW")
-      : rawThreat;
+    let threatLevel = "GREEN";
+
+    if (rawThreat === "WATCH") {
+      if (personCount >= 3 && frameRatio > 0.18) {
+        threatLevel = "RED";
+      } else if (personCount >= 2 || frameRatio > 0.22) {
+        threatLevel = "YELLOW";
+      }
+    } else {
+      threatLevel = frameRatio > 0.14 ? rawThreat : "GREEN";
+    }
 
     if (frameRatio > FRAME_WIDTH_THRESHOLD && threatLevel !== "GREEN") {
       threatLevel = "RED";
@@ -96,6 +110,7 @@ export function useHazardDetection(videoRef, canvasRef, { nightMode, enabled }) 
 
   const intervalRef = useRef(null);
   const offscreenRef = useRef(null);
+  const stabilityRef = useRef({ candidate: "GREEN", streak: 0, stable: "GREEN" });
 
   useEffect(() => {
     let cancelled = false;
@@ -155,9 +170,26 @@ export function useHazardDetection(videoRef, canvasRef, { nightMode, enabled }) 
         console.warn("[SafeRoute] Inference error:", error);
       }
 
-      const { detections: nextDetections, highestLevel } = classifyDetections(predictions, width);
+      const { detections: nextDetections, highestLevel } = classifyDetections(predictions, width, height);
+      const threshold = highestLevel === "RED" ? 3 : highestLevel === "YELLOW" ? 2 : 1;
+
+      if (highestLevel === stabilityRef.current.candidate) {
+        stabilityRef.current.streak += 1;
+      } else {
+        stabilityRef.current = {
+          ...stabilityRef.current,
+          candidate: highestLevel,
+          streak: 1,
+        };
+      }
+
+      const stableThreatLevel = stabilityRef.current.streak >= threshold
+        ? highestLevel
+        : stabilityRef.current.stable;
+
+      stabilityRef.current.stable = stableThreatLevel;
       setDetections(nextDetections);
-      setThreatLevel(highestLevel);
+      setThreatLevel(stableThreatLevel);
     } finally {
       setIsProcessing(false);
     }

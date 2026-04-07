@@ -24,8 +24,37 @@ export function useGPS() {
 
 export function useAudioAlerts() {
   const lastAlertRef = useRef(null);
+  const audioContextRef = useRef(null);
+  const [audioEnabled, setAudioEnabled] = useState(false);
+
+  const enableAudio = useCallback(async () => {
+    try {
+      const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+      if (AudioContextCtor && !audioContextRef.current) {
+        audioContextRef.current = new AudioContextCtor();
+      }
+
+      if (audioContextRef.current?.state === "suspended") {
+        await audioContextRef.current.resume();
+      }
+
+      if ("speechSynthesis" in window) {
+        window.speechSynthesis.getVoices();
+        const primer = new SpeechSynthesisUtterance("");
+        primer.volume = 0;
+        window.speechSynthesis.speak(primer);
+      }
+
+      setAudioEnabled(true);
+      return true;
+    } catch (_) {
+      setAudioEnabled(false);
+      return false;
+    }
+  }, []);
 
   const triggerAlert = useCallback((threatLevel) => {
+    if (!audioEnabled) return;
     if (lastAlertRef.current === threatLevel) return;
 
     lastAlertRef.current = threatLevel;
@@ -58,7 +87,8 @@ export function useAudioAlerts() {
     if (threatLevel === "RED") {
       try {
         const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
-        const audioContext = new AudioContextCtor();
+        const audioContext = audioContextRef.current || new AudioContextCtor();
+        audioContextRef.current = audioContext;
         const gain = audioContext.createGain();
         gain.connect(audioContext.destination);
 
@@ -73,15 +103,13 @@ export function useAudioAlerts() {
           oscillator.start(audioContext.currentTime + index * 0.4);
           oscillator.stop(audioContext.currentTime + index * 0.4 + 0.4);
         }
-
-        setTimeout(() => audioContext.close(), 1500);
       } catch (_) {
         // Ignore audio failures so visual warnings still work.
       }
     }
-  }, []);
+  }, [audioEnabled]);
 
-  return { triggerAlert };
+  return { audioEnabled, enableAudio, triggerAlert };
 }
 
 const BACKEND = import.meta.env.VITE_BACKEND_URL || "http://localhost:3001";

@@ -25,7 +25,7 @@ export default function App() {
     { nightMode, enabled: cameraReady }
   );
   const { nearbyZones, reportZone } = useDangerZones(position);
-  const { triggerAlert } = useAudioAlerts();
+  const { audioEnabled, enableAudio, triggerAlert } = useAudioAlerts();
 
   useEffect(() => {
     if (!threatLevel || threatLevel === "GREEN") return;
@@ -60,6 +60,18 @@ export default function App() {
       {systemStatus ? (
         <div className="system-banner" role="status">
           {systemStatus}
+        </div>
+      ) : null}
+
+      {!audioEnabled ? (
+        <div className="audio-banner">
+          <div>
+            <strong>Enable audio alerts</strong>
+            <span>Tap once to unlock spoken warnings on mobile browsers.</span>
+          </div>
+          <button className="audio-enable-btn" onClick={enableAudio}>
+            Enable Audio
+          </button>
         </div>
       ) : null}
 

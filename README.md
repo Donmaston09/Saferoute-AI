@@ -2,6 +2,13 @@
 
 SafeRoute AI is a driver-focused hazard awareness app built around on-device detection, a tactical HUD, and community danger-zone reporting.
 
+## Creator
+
+- Anthony Onoja
+- School of Health Sciences
+- University of Surrey, UK
+- Email: donmaston09@gmail.com
+
 ## Critical Assessment
 
 The original app idea was strong, but the repo was not ready for production or deployment:
@@ -67,3 +74,8 @@ python hazard_detector.py --source 0
 - `backend` is ready for Node hosting on Render or Railway
 - set `VITE_BACKEND_URL` in the frontend host
 - set `FRONTEND_ORIGIN` in the backend host if you want tighter CORS than `*`
+
+## Reliability Notes
+
+- mobile browsers often require a one-time tap before voice alerts are allowed, so the app now includes an explicit audio unlock action
+- the browser detector has been tuned to reduce false positives by requiring stronger confidence, larger objects, and short multi-frame confirmation before escalating alerts
