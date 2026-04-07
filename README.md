@@ -74,8 +74,10 @@ python hazard_detector.py --source 0
 - `backend` is ready for Node hosting on Render or Railway
 - set `VITE_BACKEND_URL` in the frontend host
 - set `FRONTEND_ORIGIN` in the backend host if you want tighter CORS than `*`
-- set `OPENAI_API_KEY` in the backend host if you want LLM-generated context reports
-- optionally set `OPENAI_MODEL` in the backend host, otherwise the backend uses `gpt-4.1-mini`
+- set `LLM_PROVIDER=openai` with `OPENAI_API_KEY` if you want OpenAI-generated context reports
+- or set `LLM_PROVIDER=gemini` with `GEMINI_API_KEY` if you want Gemini-generated context reports
+- optionally set `OPENAI_MODEL`, otherwise the backend uses `gpt-4.1-mini`
+- optionally set `GEMINI_MODEL`, otherwise the backend uses `gemini-2.5-flash`
 
 ## Reliability Notes
 

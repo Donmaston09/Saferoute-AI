@@ -7,6 +7,7 @@ require("dotenv").config();
 const app = express();
 const PORT = process.env.PORT || 3001;
 const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 
 app.use(cors({ origin: process.env.FRONTEND_ORIGIN || "*" }));
 app.use(express.json());
@@ -88,6 +89,12 @@ function buildHeuristicContextReport({
 }
 
 async function buildLlmContextReport(payload, fallbackReport) {
+  const provider = (process.env.LLM_PROVIDER || "").toLowerCase();
+
+  if (provider === "gemini" && process.env.GEMINI_API_KEY) {
+    return buildGeminiContextReport(payload, fallbackReport);
+  }
+
   if (!openai) return fallbackReport;
 
   const prompt = [
@@ -128,6 +135,72 @@ async function buildLlmContextReport(payload, fallbackReport) {
     };
   } catch (error) {
     console.warn("[SafeRoute] Context report fallback:", error.message);
+    return fallbackReport;
+  }
+}
+
+async function buildGeminiContextReport(payload, fallbackReport) {
+  const prompt = [
+    "You are a driving safety assistant for Nigerian and African road contexts.",
+    "Convert detector output into calm, reliable guidance.",
+    "Avoid dramatic language, avoid identity-based assumptions, and do not infer criminal intent.",
+    "Return strict JSON with keys: headline, summary, evidence, guidance, confidence.",
+    "Confidence must be a number from 0 to 1.",
+    "Evidence must be an array of short strings.",
+    "",
+    JSON.stringify({
+      threatLevel: payload.threatLevel,
+      communityRiskLevel: payload.communityRiskLevel,
+      detections: payload.detections,
+      nearbyZones: payload.nearbyZones?.slice(0, 3),
+      position: payload.position || null,
+      fallback: fallbackReport,
+    }),
+  ].join("\n");
+
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": process.env.GEMINI_API_KEY,
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              role: "user",
+              parts: [{ text: prompt }],
+            },
+          ],
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Gemini request failed: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const text = data?.candidates?.[0]?.content?.parts
+      ?.map(part => part.text || "")
+      .join("")
+      .trim();
+
+    if (!text) return fallbackReport;
+
+    const parsed = JSON.parse(text);
+    return {
+      source: "gemini",
+      confidence: Number.isFinite(parsed.confidence) ? parsed.confidence : fallbackReport.confidence,
+      headline: parsed.headline || fallbackReport.headline,
+      summary: parsed.summary || fallbackReport.summary,
+      evidence: Array.isArray(parsed.evidence) ? parsed.evidence.slice(0, 4) : fallbackReport.evidence,
+      guidance: parsed.guidance || fallbackReport.guidance,
+    };
+  } catch (error) {
+    console.warn("[SafeRoute] Gemini context fallback:", error.message);
     return fallbackReport;
   }
 }
@@ -281,7 +354,8 @@ app.get("/health", (_req, res) => {
     status: "ok",
     zones: dangerZones.length,
     uptime: process.uptime(),
-    llmConfigured: Boolean(process.env.OPENAI_API_KEY),
+    llmProvider: process.env.LLM_PROVIDER || (process.env.GEMINI_API_KEY ? "gemini" : process.env.OPENAI_API_KEY ? "openai" : "heuristic"),
+    llmConfigured: Boolean(process.env.OPENAI_API_KEY || process.env.GEMINI_API_KEY),
   });
 });
 
