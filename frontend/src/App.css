@@ -332,6 +332,36 @@ html, body {
   flex-shrink:   0;
 }
 
+.creator-credit {
+  padding: 10px 16px 14px;
+  background: #0b1220;
+  border-top: 1px solid #162033;
+  display: grid;
+  gap: 2px;
+}
+
+.creator-credit-name,
+.creator-credit-meta,
+.creator-credit-link {
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.creator-credit-name {
+  color: #e2e8f0;
+  font-family: var(--font-hud);
+  letter-spacing: 0.08em;
+}
+
+.creator-credit-meta {
+  color: #94a3b8;
+}
+
+.creator-credit-link {
+  color: #93c5fd;
+  text-decoration: none;
+}
+
 .controls-row {
   display:         flex;
   align-items:     center;

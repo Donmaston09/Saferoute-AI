@@ -129,6 +129,14 @@ export default function App() {
         nearbyZones={nearbyZones}
         modelReady={modelLoaded}
       />
+
+      <div className="creator-credit" aria-label="creator information">
+        <p className="creator-credit-name">Created by Anthony Onoja</p>
+        <p className="creator-credit-meta">School of Health Sciences, University of Surrey, UK</p>
+        <a className="creator-credit-link" href="mailto:donmaston09@gmail.com">
+          donmaston09@gmail.com
+        </a>
+      </div>
     </div>
   );
 }
